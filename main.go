@@ -35,7 +35,7 @@ func init() {
 
 var (
 	roomId = flag.Int("r", 0, "直播间ID")
-	voiceType int
+	voiceType = flag.Int("v", 0, "声音类型")
 	voice = biliStreamClient.VoiceConfig{}
 )
 
@@ -50,13 +50,19 @@ func main() {
 	biliClient := biliStreamClient.New()
 	biliClient.Connect(*roomId)
 
-	fmt.Println("请输入你想听的声音类型：")
-	fmt.Println("1：知性女声")
-	fmt.Println("2：粤语女声")
-	fmt.Println("3：女童")
-	fmt.Println("4：男童")
-	fmt.Scanln(&voiceType)
-	voice = chooseVoiceType(voiceType)
+	if *voiceType == 0 {
+		var inputVoiceType int
+		fmt.Println("请输入你想听的声音类型：")
+		fmt.Println("1：知性女声")
+		fmt.Println("2：粤语女声")
+		fmt.Println("3：女童")
+		fmt.Println("4：男童")
+		fmt.Scanln(&inputVoiceType)
+		voice = chooseVoiceType(inputVoiceType)
+	}
+	voice = chooseVoiceType(*voiceType)
+
+
 	for {
 		packBody := <- biliClient.Ch
 		switch packBody.Cmd {
@@ -67,17 +73,17 @@ func main() {
 			}
 			processDanmuMessage(&danmu)
 		case constant.SendGift:
-			//danmu, err := packBody.ParseGift()
-			//if err != nil {
-			//	log.Fatalln(err)
-			//}
-			//
-			//biliStreamClient.GetVoiceFromTencentCloud()
+			gift, err := packBody.ParseGift()
+			if err != nil {
+				log.Fatalln(err)
+			}
+			processGiftMessage(&gift)
 		}
 
 	}
 
 }
+
 
 func chooseVoiceType(voiceType int)  biliStreamClient.VoiceConfig {
 	var voice biliStreamClient.VoiceConfig
@@ -97,6 +103,53 @@ func chooseVoiceType(voiceType int)  biliStreamClient.VoiceConfig {
 	return voice
 }
 
+func processGiftMessage(gift *biliStreamClient.Gift) {
+	sender := gift.Sender
+	action := gift.Action
+	msg := gift.GiftName
+
+	content := fmt.Sprintf("%s%s%s",sender, action, msg)
+
+	voice, err := parseTextToVoice(content)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = playVoice(voice)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func parseTextToVoice(content string) ([]byte, error) {
+	SID := viper.GetString("tencent.secretID")
+	SK := viper.GetString("tencent.secretKey")
+	encodedVoice, err := biliStreamClient.GetVoiceFromTencentCloud(SID, SK, voice, content)
+	if err != nil {
+		return nil, err
+	}
+
+	data, err := base64.StdEncoding.DecodeString(encodedVoice)
+	if err != nil {
+		return nil, err
+	}
+
+	return data, nil
+}
+
+func playVoice(data []byte) error {
+	streamer, format, err := wav.Decode(bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+
+	speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/15))
+	speaker.Play(streamer)
+
+	time.Sleep(time.Second * 2)
+	return nil
+}
+
 func processDanmuMessage(danmu *biliStreamClient.DanmuMsg) error {
 	sender := danmu.Name
 	msg := danmu.Message
@@ -110,14 +163,19 @@ func processDanmuMessage(danmu *biliStreamClient.DanmuMsg) error {
 	}
 
 	data, err := base64.StdEncoding.DecodeString(encodedVoice)
+	if err != nil {
+		log.Fatalln(err)
+	}
 
 	streamer, format, err := wav.Decode(bytes.NewReader(data))
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	speaker.Init(format.SampleRate, format.SampleRate.N(time.Minute/50))
+	speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/15))
 	speaker.Play(streamer)
+
+	time.Sleep(time.Second * 2)
 
 
 	return nil
