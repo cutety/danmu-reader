@@ -16,8 +16,6 @@ import (
 	"github.com/cutety/danmu-reader/constant"
 )
 
-
-
 func init() {
 	viper.AddConfigPath("config")
 	viper.SetConfigName("config-dev")
@@ -34,9 +32,9 @@ func init() {
 }
 
 var (
-	roomId = flag.Int("r", 0, "直播间ID")
+	roomId    = flag.Int("r", 0, "直播间ID")
 	voiceType = flag.Int("v", 0, "声音类型")
-	voice = biliStreamClient.VoiceConfig{}
+	voice     = biliStreamClient.VoiceConfig{}
 )
 
 func main() {
@@ -62,9 +60,8 @@ func main() {
 	}
 	voice = chooseVoiceType(*voiceType)
 
-
 	for {
-		packBody := <- biliClient.Ch
+		packBody := <-biliClient.Ch
 		switch packBody.Cmd {
 		case constant.DanmuMsg:
 			danmu, err := packBody.ParseDanmu()
@@ -84,8 +81,7 @@ func main() {
 
 }
 
-
-func chooseVoiceType(voiceType int)  biliStreamClient.VoiceConfig {
+func chooseVoiceType(voiceType int) biliStreamClient.VoiceConfig {
 	var voice biliStreamClient.VoiceConfig
 	switch voiceType {
 	case constant.VoiceTypeIntellectualFemale:
@@ -104,12 +100,11 @@ func chooseVoiceType(voiceType int)  biliStreamClient.VoiceConfig {
 }
 
 func processGiftMessage(gift *biliStreamClient.Gift) {
-	sender := gift.Sender
-	action := gift.Action
+	sender := gift.Sender.Name
 	msg := gift.GiftName
 
-	content := fmt.Sprintf("%s%s%s",sender, action, msg)
-
+	content := fmt.Sprintf("%s送了%s", sender, msg)
+	log.Printf("%s", content)
 	voice, err := parseTextToVoice(content)
 	if err != nil {
 		log.Fatal(err)
@@ -143,10 +138,10 @@ func playVoice(data []byte) error {
 		return err
 	}
 
-	speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/15))
+	speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/10))
 	speaker.Play(streamer)
 
-	time.Sleep(time.Second * 2)
+	time.Sleep(time.Second * 1)
 	return nil
 }
 
@@ -176,7 +171,6 @@ func processDanmuMessage(danmu *biliStreamClient.DanmuMsg) error {
 	speaker.Play(streamer)
 
 	time.Sleep(time.Second * 2)
-
 
 	return nil
 }
